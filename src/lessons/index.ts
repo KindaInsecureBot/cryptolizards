@@ -14,7 +14,7 @@ const CHAPTER_0: Chapter = {
       id: 'ch0-l1',
       chapter: 0,
       step: 1,
-      title: 'Variables & Types — Your First Lizard Stats 📊',
+      title: 'Variables & Types 📊',
       content: `
 ## Welcome to Rust, Lizard Breeder! 🦎🔧
 
@@ -118,7 +118,7 @@ The code below won't compile. Fix it by:
       id: 'ch0-l2',
       chapter: 0,
       step: 2,
-      title: 'Structs — Building a Lizard 🏗️',
+      title: 'Structs 🏗️',
       content: `
 ## Grouping Data with Structs
 
@@ -242,7 +242,7 @@ fn main() {
       id: 'ch0-l3',
       chapter: 0,
       step: 3,
-      title: 'Enums & Match — Lizard Species 🦎🐉',
+      title: 'Enums & Match 🦎',
       content: `
 ## Enums — Named Variants
 
@@ -370,7 +370,7 @@ fn main() {
       id: 'ch0-l4',
       chapter: 0,
       step: 4,
-      title: 'Vectors & Destructuring — Lizard Collections 📦',
+      title: 'Vectors & Destructuring 📦',
       content: `
 ## Vec<T> — Growable Arrays
 
@@ -493,7 +493,7 @@ let found = roster.iter().find(|name| *name == "Rex");
       id: 'ch0-l5',
       chapter: 0,
       step: 5,
-      title: 'Serialization — Saving Your Lizard to Bytes 💾',
+      title: 'Serialization 💾',
       content: `
 ## Why bytes?
 
