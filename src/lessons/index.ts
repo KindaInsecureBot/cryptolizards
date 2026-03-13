@@ -1,6 +1,626 @@
 import type { Chapter } from '../engine/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER 0 — Rust for Lizard Breeders
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CHAPTER_0: Chapter = {
+  id: 0,
+  title: 'Rust for Lizard Breeders',
+  description: 'Learn just enough Rust to write LEZ programs — variables, structs, enums, and serialization',
+  lessons: [
+    // ─── Lesson 0.1 ──────────────────────────────────────────────────────────
+    {
+      id: 'ch0-l1',
+      chapter: 0,
+      step: 1,
+      title: 'Variables & Types — Your First Lizard Stats 📊',
+      content: `
+## Welcome to Rust, Lizard Breeder! 🦎🔧
+
+Before you can write LEZ programs, you need a little Rust. Don't worry — we'll
+only teach what you actually need. By lesson 0.5 you'll have everything to
+understand Chapter 1.
+
+> **Note:** These lessons are pure Rust — no LEZ APIs yet. LEZ comes in Chapter 1!
+
+### Immutable by default
+
+In JavaScript you write \`let x = 5\` and can reassign it freely. In Rust,
+\`let x = 5\` is **immutable** — you can never change \`x\`. To allow mutation
+you must write \`let mut x = 5\`.
+
+\`\`\`rust
+let name = String::from("Spike");  // immutable — name never changes
+let mut level: u64 = 1;           // mutable — level can grow
+level += 1;                        // ✅ works
+// name = String::from("Rex");    // ❌ compile error!
+\`\`\`
+
+### Common types you'll see in LEZ
+
+| Type | Description | Like in JS/Python |
+|---|---|---|
+| \`u8\` | 0–255 integer | \`number\` (small) |
+| \`u32\` | 0–4 billion integer | \`number\` |
+| \`u64\` | 0–18 quintillion integer | \`BigInt\` |
+| \`u128\` | very large integer | \`BigInt\` (bigger) |
+| \`bool\` | true/false | \`boolean\` |
+| \`String\` | text (heap-allocated) | \`string\` |
+| \`Vec<u8>\` | growable array of bytes | \`Uint8Array\` |
+
+Type annotations go after the variable name with a colon: \`let age: u64 = 5;\`
+
+### Your mission 📊
+
+The code below won't compile. Fix it by:
+1. Adding \`mut\` to \`level\` so it can be incremented
+2. Adding \`mut\` and the type annotation \`: u32\` to \`health\`
+      `.trim(),
+
+      initialCode: `fn main() {
+    // A lizard's name never changes — keep it immutable
+    let name: String = String::from("Spike");
+
+    // The lizard's level — starts at 1, can grow
+    // FIX: add \`mut\` so we can level up
+    let level: u64 = 1;
+
+    // Health points — changes during battle
+    // FIX: add \`mut\` and the correct type annotation \`: u32\`
+    let health = 100;
+
+    level += 1;
+    health -= 10;
+
+    println!("Lizard: {}, Level: {}, HP: {}", name, level, health);
+}
+`,
+
+      solution: `fn main() {
+    let name: String = String::from("Spike");
+    let mut level: u64 = 1;
+    let mut health: u32 = 100;
+
+    level += 1;
+    health -= 10;
+
+    println!("Lizard: {}, Level: {}, HP: {}", name, level, health);
+}
+`,
+
+      validations: [
+        {
+          pattern: /let\s+mut\s+level/,
+          message: 'Make `level` mutable with `let mut level: u64 = 1;`',
+          required: true,
+        },
+        {
+          pattern: /let\s+mut\s+health/,
+          message: 'Make `health` mutable with `let mut health`',
+          required: true,
+        },
+        {
+          pattern: /health:\s*u32/,
+          message: 'Give `health` the type annotation `: u32`',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Change `let level: u64 = 1;` to `let mut level: u64 = 1;` — the `mut` keyword goes between `let` and the variable name',
+        'Change `let health = 100;` to `let mut health: u32 = 100;` — add both `mut` and the type annotation `: u32`',
+      ],
+    },
+
+    // ─── Lesson 0.2 ──────────────────────────────────────────────────────────
+    {
+      id: 'ch0-l2',
+      chapter: 0,
+      step: 2,
+      title: 'Structs — Building a Lizard 🏗️',
+      content: `
+## Grouping Data with Structs
+
+A **struct** lets you bundle related fields together — like a class with only data
+(no methods yet). In Solidity you'd call this a struct too; in Python it's a
+dataclass.
+
+\`\`\`rust
+struct Lizard {
+    name: String,
+    species: String,
+    level: u64,
+}
+
+let lizard = Lizard {
+    name: String::from("Spike"),
+    species: String::from("Gecko"),
+    level: 1,
+};
+
+println!("{}", lizard.name); // dot notation, same as JS
+\`\`\`
+
+### Derive macros — free code from the compiler
+
+\`#[derive(...)]\` tells Rust to auto-generate trait implementations for you:
+
+| Derive | What it gives you |
+|---|---|
+| \`Debug\` | \`println!("{:?}", lizard)\` — useful for debugging |
+| \`Clone\` | \`lizard.clone()\` — make a deep copy |
+
+You need \`Clone\` because Rust's ownership rules mean you can't just copy a
+\`String\` by assigning it — you must explicitly call \`.clone()\`.
+
+### Your mission 🏗️
+
+The struct below is missing its \`#[derive]\` macro and its field definitions.
+
+1. Add \`#[derive(Debug, Clone)]\` above the struct
+2. Add the three fields: \`name: String\`, \`species: String\`, \`level: u64\`
+      `.trim(),
+
+      initialCode: `// FIX 1: add #[derive(Debug, Clone)] here so we can print and clone the lizard
+struct Lizard {
+    // FIX 2: add fields — name (String), species (String), level (u64)
+}
+
+fn main() {
+    let mut lizard = Lizard {
+        name: String::from("Spike"),
+        species: String::from("Gecko"),
+        level: 1,
+    };
+
+    println!("Before: {:?}", lizard);
+
+    lizard.level += 1;
+
+    // Clone creates an independent copy — changing one won't affect the other
+    let hall_of_fame = lizard.clone();
+    println!("Hall of fame: {:?}", hall_of_fame);
+}
+`,
+
+      solution: `#[derive(Debug, Clone)]
+struct Lizard {
+    name: String,
+    species: String,
+    level: u64,
+}
+
+fn main() {
+    let mut lizard = Lizard {
+        name: String::from("Spike"),
+        species: String::from("Gecko"),
+        level: 1,
+    };
+
+    println!("Before: {:?}", lizard);
+
+    lizard.level += 1;
+
+    let hall_of_fame = lizard.clone();
+    println!("Hall of fame: {:?}", hall_of_fame);
+}
+`,
+
+      validations: [
+        {
+          pattern: /#\[derive\([^)]*Debug[^)]*\)\]/,
+          message: 'Add `#[derive(Debug, Clone)]` above the struct',
+          required: true,
+        },
+        {
+          pattern: /#\[derive\([^)]*Clone[^)]*\)\]/,
+          message: 'Include `Clone` in the derive macro: `#[derive(Debug, Clone)]`',
+          required: true,
+        },
+        {
+          pattern: /name:\s*String/,
+          message: 'Add the `name: String` field to the struct',
+          required: true,
+        },
+        {
+          pattern: /level:\s*u64/,
+          message: 'Add the `level: u64` field to the struct',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'The derive macro goes on the line directly above `struct Lizard {`: `#[derive(Debug, Clone)]`',
+        'Add each field on its own line inside the struct: `name: String,` then `species: String,` then `level: u64,`',
+        'Remember the commas after each field — Rust structs use trailing commas',
+      ],
+    },
+
+    // ─── Lesson 0.3 ──────────────────────────────────────────────────────────
+    {
+      id: 'ch0-l3',
+      chapter: 0,
+      step: 3,
+      title: 'Enums & Match — Lizard Species 🦎🐉',
+      content: `
+## Enums — Named Variants
+
+An **enum** is a type that can be one of several variants. You've seen these in
+TypeScript as union types or in Python as \`Enum\`. In Rust they're much more
+powerful.
+
+\`\`\`rust
+enum Species {
+    Gecko,
+    Chameleon,
+    Dragon,
+}
+
+let my_lizard = Species::Dragon; // double-colon to pick a variant
+\`\`\`
+
+Enums can also carry data:
+
+\`\`\`rust
+enum Action {
+    Feed { amount: u64 },
+    Rename { new_name: String },
+}
+\`\`\`
+
+### Match — exhaustive pattern matching
+
+\`match\` is like a \`switch\` in JS/Solidity, but the **compiler forces you to
+handle every variant**. No more forgotten cases!
+
+\`\`\`rust
+match species {
+    Species::Gecko    => 10,
+    Species::Chameleon => 25,
+    Species::Dragon   => 100,
+    // If you forget a variant, the compiler errors. No silent bugs!
+}
+\`\`\`
+
+### Your mission 🦎🐉
+
+1. Define the \`Species\` enum with variants: \`Gecko\`, \`Chameleon\`, \`Dragon\`
+2. Complete \`power_level\` so it matches on the species and returns the correct value
+      `.trim(),
+
+      initialCode: `// FIX 1: define the Species enum here
+// enum Species { ... }
+
+fn power_level(species: &Species) -> u64 {
+    // FIX 2: replace this with a match expression
+    // Gecko => 10, Chameleon => 25, Dragon => 100
+    0
+}
+
+fn main() {
+    let species = Species::Dragon;
+    println!("Dragon power level: {}", power_level(&species));
+
+    let gecko = Species::Gecko;
+    println!("Gecko power level: {}", power_level(&gecko));
+}
+`,
+
+      solution: `enum Species {
+    Gecko,
+    Chameleon,
+    Dragon,
+}
+
+fn power_level(species: &Species) -> u64 {
+    match species {
+        Species::Gecko     => 10,
+        Species::Chameleon => 25,
+        Species::Dragon    => 100,
+    }
+}
+
+fn main() {
+    let species = Species::Dragon;
+    println!("Dragon power level: {}", power_level(&species));
+
+    let gecko = Species::Gecko;
+    println!("Gecko power level: {}", power_level(&gecko));
+}
+`,
+
+      validations: [
+        {
+          pattern: /enum\s+Species/,
+          message: 'Define `enum Species { ... }` with your variants',
+          required: true,
+        },
+        {
+          pattern: /Gecko/,
+          message: 'Add a `Gecko` variant to the enum',
+          required: true,
+        },
+        {
+          pattern: /Chameleon/,
+          message: 'Add a `Chameleon` variant to the enum',
+          required: true,
+        },
+        {
+          pattern: /Dragon/,
+          message: 'Add a `Dragon` variant to the enum',
+          required: true,
+        },
+        {
+          pattern: /match\s+species/,
+          message: 'Use a `match species { ... }` expression to return different values per variant',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Define the enum above the function:\n```rust\nenum Species {\n    Gecko,\n    Chameleon,\n    Dragon,\n}\n```',
+        'Replace the `0` in `power_level` with:\n```rust\nmatch species {\n    Species::Gecko     => 10,\n    Species::Chameleon => 25,\n    Species::Dragon    => 100,\n}\n```',
+        'The match arms use `=>` (fat arrow), not `->`. No `break` needed — Rust match arms don\'t fall through.',
+      ],
+    },
+
+    // ─── Lesson 0.4 ──────────────────────────────────────────────────────────
+    {
+      id: 'ch0-l4',
+      chapter: 0,
+      step: 4,
+      title: 'Vectors & Destructuring — Lizard Collections 📦',
+      content: `
+## Vec<T> — Growable Arrays
+
+A \`Vec<T>\` is Rust's dynamic array — like a JS \`Array\` or Python \`list\`.
+
+\`\`\`rust
+let lizards: Vec<String> = vec![
+    String::from("Spike"),
+    String::from("Rex"),
+];
+\`\`\`
+
+### Destructuring into a fixed array
+
+This pattern is **everywhere in LEZ** — you receive a \`Vec\` of accounts and
+need to unpack exactly N of them:
+
+\`\`\`rust
+let [first, second] = lizards
+    .try_into()
+    .unwrap_or_else(|_| panic!("Expected exactly 2 lizards"));
+\`\`\`
+
+What's happening here?
+- \`.try_into()\` — attempt to convert the \`Vec\` into a fixed-size \`[T; 2]\` array
+- \`.unwrap_or_else(|_| panic!(...))\` — if the vec doesn't have exactly 2 elements, crash with a message
+- \`let [first, second] = ...\` — destructure the array into named variables
+
+### Searching a collection
+
+\`\`\`rust
+let found = roster.iter().find(|name| *name == "Rex");
+// found is Option<&&String> — Some(&"Rex") or None
+\`\`\`
+
+### Your mission 📦
+
+1. Destructure \`lizards\` into exactly \`[first, second]\` using \`.try_into()\`
+2. Find \`"Zara"\` in \`roster\` using \`.iter().find()\`
+      `.trim(),
+
+      initialCode: `fn main() {
+    let lizards: Vec<String> = vec![
+        String::from("Spike"),
+        String::from("Rex"),
+    ];
+
+    // FIX 1: destructure exactly 2 names using .try_into()
+    // let [first, second] = lizards.try_into().unwrap_or_else(|_| panic!("Expected 2"));
+    let first = &lizards[0];
+    let second = &lizards[1];
+    println!("First: {}, Second: {}", first, second);
+
+    let roster: Vec<String> = vec![
+        String::from("Spike"),
+        String::from("Rex"),
+        String::from("Zara"),
+    ];
+
+    // FIX 2: find "Zara" using .iter().find()
+    let found: Option<&String> = None;
+    println!("Found Zara: {:?}", found);
+}
+`,
+
+      solution: `fn main() {
+    let lizards: Vec<String> = vec![
+        String::from("Spike"),
+        String::from("Rex"),
+    ];
+
+    let [first, second] = lizards
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly 2 lizards"));
+    println!("First: {}, Second: {}", first, second);
+
+    let roster: Vec<String> = vec![
+        String::from("Spike"),
+        String::from("Rex"),
+        String::from("Zara"),
+    ];
+
+    let found = roster.iter().find(|name| *name == "Zara");
+    println!("Found Zara: {:?}", found);
+}
+`,
+
+      validations: [
+        {
+          pattern: /let\s+\[/,
+          message: 'Use array destructuring: `let [first, second] = ...`',
+          required: true,
+        },
+        {
+          pattern: /\.try_into\(\)/,
+          message: 'Convert the Vec to a fixed array with `.try_into()`',
+          required: true,
+        },
+        {
+          pattern: /\.unwrap_or_else\(/,
+          message: 'Handle the conversion error with `.unwrap_or_else(|_| panic!(...))`',
+          required: true,
+        },
+        {
+          pattern: /\.find\(/,
+          message: 'Search the roster with `.iter().find(...)`',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Replace the two `let first/second` lines with:\n```rust\nlet [first, second] = lizards\n    .try_into()\n    .unwrap_or_else(|_| panic!("Expected exactly 2 lizards"));\n```',
+        'For the find, replace `let found: Option<&String> = None;` with:\n```rust\nlet found = roster.iter().find(|name| *name == "Zara");\n```',
+        'The `|_|` in `unwrap_or_else` is a closure that takes one argument and ignores it (the error). The `|name|` in `find` is a closure that takes each element and returns `true` if it matches.',
+      ],
+    },
+
+    // ─── Lesson 0.5 ──────────────────────────────────────────────────────────
+    {
+      id: 'ch0-l5',
+      chapter: 0,
+      step: 5,
+      title: 'Serialization — Saving Your Lizard to Bytes 💾',
+      content: `
+## Why bytes?
+
+LEZ stores every account's state as a raw byte array. To save a Rust struct to
+an account (or read it back), you need to convert between struct ↔ bytes.
+LEZ uses **Borsh** — a compact binary serialization format.
+
+### Adding Borsh to a struct
+
+\`\`\`rust
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct LizardData {
+    name: String,
+    level: u64,
+}
+\`\`\`
+
+### Serializing (struct → bytes)
+
+\`\`\`rust
+let bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();
+\`\`\`
+
+### Deserializing (bytes → struct)
+
+\`\`\`rust
+let restored = LizardData::try_from_slice(&bytes).unwrap();
+\`\`\`
+
+In LEZ programs (Chapter 1+) you'll also see \`Data::try_from(vec)\` to convert
+\`Vec<u8>\` into the LEZ \`Data\` type — but the pattern is the same.
+
+### Your mission 💾
+
+1. Add \`#[derive(BorshSerialize, BorshDeserialize)]\` to \`LizardData\`
+2. Serialize the lizard with \`borsh::to_vec(&lizard).unwrap()\`
+3. Deserialize it back with \`LizardData::try_from_slice(&bytes).unwrap()\`
+
+You now have all the Rust you need for Chapter 1. Let's go breed some lizards on-chain! 🦎🚀
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+
+// FIX 1: add #[derive(BorshSerialize, BorshDeserialize)] to enable serialization
+struct LizardData {
+    name: String,
+    level: u64,
+    health: u32,
+}
+
+fn main() {
+    let lizard = LizardData {
+        name: String::from("Spike"),
+        level: 5,
+        health: 100,
+    };
+
+    // FIX 2: serialize lizard to bytes using borsh::to_vec
+    let bytes: Vec<u8> = vec![]; // placeholder — replace this
+
+    println!("Serialized {} bytes", bytes.len());
+
+    // FIX 3: deserialize bytes back to LizardData using try_from_slice
+    // let restored = ...
+    println!("Restored: Spike level 0"); // replace with real values
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct LizardData {
+    name: String,
+    level: u64,
+    health: u32,
+}
+
+fn main() {
+    let lizard = LizardData {
+        name: String::from("Spike"),
+        level: 5,
+        health: 100,
+    };
+
+    let bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();
+    println!("Serialized {} bytes", bytes.len());
+
+    let restored = LizardData::try_from_slice(&bytes).unwrap();
+    println!("Restored: {} level {}", restored.name, restored.level);
+}
+`,
+
+      validations: [
+        {
+          pattern: /#\[derive\([^)]*BorshSerialize[^)]*\)\]/,
+          message: 'Add `#[derive(BorshSerialize, BorshDeserialize)]` above the struct',
+          required: true,
+        },
+        {
+          pattern: /#\[derive\([^)]*BorshDeserialize[^)]*\)\]/,
+          message: 'Include `BorshDeserialize` in the derive macro',
+          required: true,
+        },
+        {
+          pattern: /borsh::to_vec\s*\(/,
+          message: 'Serialize with `borsh::to_vec(&lizard).unwrap()`',
+          required: true,
+        },
+        {
+          pattern: /try_from_slice\s*\(/,
+          message: 'Deserialize with `LizardData::try_from_slice(&bytes).unwrap()`',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Add the derive on the line above `struct LizardData {`:\n```rust\n#[derive(BorshSerialize, BorshDeserialize)]\n```',
+        'Replace `let bytes: Vec<u8> = vec![];` with:\n```rust\nlet bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();\n```',
+        'Add deserialization after the println:\n```rust\nlet restored = LizardData::try_from_slice(&bytes).unwrap();\nprintln!("Restored: {} level {}", restored.name, restored.level);\n```',
+      ],
+    },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CHAPTER 1 — Hatching Season (Basics)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1477,7 +2097,7 @@ fn main() {
 // Exports (extended in subsequent chapters)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const CHAPTERS: Chapter[] = [CHAPTER_1, CHAPTER_2, CHAPTER_3];
+export const CHAPTERS: Chapter[] = [CHAPTER_0, CHAPTER_1, CHAPTER_2, CHAPTER_3];
 
 export const ALL_LESSONS = CHAPTERS.flatMap((c) => c.lessons);
 
