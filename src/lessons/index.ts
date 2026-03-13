@@ -1,379 +1,446 @@
 import type { Chapter } from '../engine/types';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER 1 — Hatching Season (Basics)
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CHAPTER_1: Chapter = {
   id: 1,
-  title: 'Getting Started with LEZ',
-  description: 'Learn the fundamentals of the Logos Execution Zone',
+  title: 'Hatching Season',
+  description: 'Learn the real LEZ programming model: read inputs, process, write outputs',
   lessons: [
+    // ─── Lesson 1 ────────────────────────────────────────────────────────────
     {
       id: 'ch1-l1',
       chapter: 1,
       step: 1,
-      title: 'Hatching Your First Lizard',
+      title: 'Your First Egg 🥚',
       content: `
-## Welcome to the Logos Execution Zone 🦎
+## Welcome, Lizard Breeder! 🦎
 
-The **Logos Execution Zone (LEZ)** is a sandboxed smart-contract runtime built for the Logos blockchain. LEZ programs are written in **Rust** and follow a strict, deterministic lifecycle:
+The **Logos Execution Zone (LEZ)** is a ZK-proven smart-contract runtime. Every LEZ program
+follows one strict pattern:
 
 > **Read → Process → Write**
 
-Every LEZ program does exactly three things:
-1. **Read** inputs from the network state (NSSA inputs)
-2. **Process** them with pure Rust logic
-3. **Write** outputs back to the network state (NSSA outputs)
+1. **Read** — call \`read_nssa_inputs\` to get accounts and an instruction
+2. **Process** — apply your business logic
+3. **Write** — call \`write_nssa_outputs\` to commit the new account states
 
-### The Entry Point
-
-A LEZ program exposes a single \`main\` function that receives inputs and returns a result:
+### The actual API
 
 \`\`\`rust
-pub fn main(inputs: NssaInputs) -> Result<NssaOutputs, LezError> {
-    // your logic here
-    Ok(outputs)
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+fn main() {
+    // Returns (ProgramInput<T>, InstructionData)
+    let (ProgramInput { pre_states, instruction }, instruction_data) =
+        read_nssa_inputs::<()>();
+    // pre_states: Vec<AccountWithMetadata>
+    // instruction: () — no instruction data for this lesson
+    // instruction_data: InstructionData — raw bytes to echo back in output
+
+    write_nssa_outputs(instruction_data, pre_states, post_states);
 }
 \`\`\`
 
-### Account State
+### AccountPostState
 
-The core type you'll work with is \`AccountPostState\`, which represents the new state of an account after your program runs:
+Wraps the modified \`Account\` you want to commit:
 
-\`\`\`rust
-AccountPostState {
-    address: Address,
-    balance: u64,
-    data: Vec<u8>,
-}
-\`\`\`
+| Constructor | Meaning |
+|---|---|
+| \`AccountPostState::new(account)\` | Output account (no ownership change) |
+| \`AccountPostState::new_claimed(account)\` | Claim ownership of this account |
 
-### Your Mission
+### Your mission 🥚
 
-Complete the skeleton below to create your first LEZ program. You need to:
+Complete the program so it reads **one** account and writes it back **unchanged**.
 
-1. Call \`read_nssa_inputs\` to get the program inputs
-2. Build an \`AccountPostState\` for the output
-3. Call \`write_nssa_outputs\` to commit the result
-
-**Fill in the \`// YOUR CODE HERE\` sections below and click Check Answer!**
+1. Call \`read_nssa_inputs::<()>()\` and bind both return values
+2. Unpack the single account from \`pre_states\` with \`try_into()\`
+3. Build \`AccountPostState::new(pre_state.account.clone())\`
+4. Call \`write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state])\`
       `.trim(),
-      initialCode: `use lez_sdk::prelude::*;
 
-// A LEZ program entry point
-pub fn main() -> Result<(), LezError> {
-    // Step 1: Read inputs from the NSSA
-    // YOUR CODE HERE — call read_nssa_inputs()
+      initialCode: `use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
 
-    // Step 2: Build the output account state
-    // YOUR CODE HERE — create an AccountPostState { address: ..., balance: ..., data: ... }
+fn main() {
+    // Step 1: Read all program inputs
+    // The type parameter <()> means the instruction carries no extra data
+    // YOUR CODE HERE
 
-    // Step 3: Write outputs back to the NSSA
-    // YOUR CODE HERE — call write_nssa_outputs(post_state)
+    // Step 2: Unpack exactly one account from pre_states
+    // Hint: pre_states.try_into().unwrap_or_else(|_| panic!("..."))
+    // YOUR CODE HERE
 
-    Ok(())
+    // Step 3: Build the post state — output the account unchanged
+    // YOUR CODE HERE
+
+    // Step 4: Commit the outputs
+    // YOUR CODE HERE
 }
 `,
-      solution: `use lez_sdk::prelude::*;
 
-// A LEZ program entry point
-pub fn main() -> Result<(), LezError> {
-    // Step 1: Read inputs from the NSSA
-    let inputs = read_nssa_inputs();
+      solution: `use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
 
-    // Step 2: Build the output account state
-    let post_state = AccountPostState {
-        address: inputs.sender,
-        balance: inputs.value,
-        data: vec![],
-    };
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
 
-    // Step 3: Write outputs back to the NSSA
-    write_nssa_outputs(post_state);
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
 
-    Ok(())
+    let post_state = AccountPostState::new(pre_state.account.clone());
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
 }
 `,
+
       validations: [
         {
-          pattern: /read_nssa_inputs\s*\(/,
-          message: 'Call `read_nssa_inputs()` to receive program inputs',
+          pattern: /read_nssa_inputs\s*::<\s*\(\s*\)\s*>/,
+          message: 'Call `read_nssa_inputs::<()>()` with the unit type parameter',
           required: true,
         },
         {
-          pattern: /AccountPostState\s*\{/,
-          message: 'Create an `AccountPostState` struct for the output',
+          pattern: /AccountPostState::new\s*\(/,
+          message: 'Create an `AccountPostState::new(…)` for the output account',
           required: true,
         },
         {
           pattern: /write_nssa_outputs\s*\(/,
-          message: 'Call `write_nssa_outputs(...)` to commit the state change',
+          message: 'Call `write_nssa_outputs(instruction_data, …)` to commit results',
           required: true,
         },
       ],
+
       hints: [
-        'The function `read_nssa_inputs()` returns the inputs passed to your program. Try: `let inputs = read_nssa_inputs();`',
-        'Build the output: `let post_state = AccountPostState { address: inputs.sender, balance: inputs.value, data: vec![] };`',
-        'Put it all together:\n```rust\nlet inputs = read_nssa_inputs();\n// ... build post_state ...\nwrite_nssa_outputs(post_state);\n```',
+        'Bind both return values: `let (ProgramInput { pre_states, instruction: _ }, instruction_data) = read_nssa_inputs::<()>();`',
+        'Destructure one account: `let [pre_state] = pre_states.try_into().unwrap_or_else(|_| panic!("Expected exactly one account"));`',
+        'Build output and commit:\n```rust\nlet post_state = AccountPostState::new(pre_state.account.clone());\nwrite_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);\n```',
       ],
     },
+
+    // ─── Lesson 2 ────────────────────────────────────────────────────────────
     {
       id: 'ch1-l2',
       chapter: 1,
       step: 2,
-      title: 'Reading Account Balances',
+      title: 'Naming Your Lizard ✏️',
       content: `
-## Inspecting Account State
+## Account Data & Borsh Serialization
 
-Now that you know the basic Read → Process → Write pattern, let's dig into what \`read_nssa_inputs\` actually gives you.
+Your lizard lives in an account's \`data\` field — a raw byte blob wrapped in the
+\`Data\` type. To store structured state you **Borsh-serialize** your Rust structs.
 
-### The NssaInputs Type
-
-\`read_nssa_inputs()\` returns an \`NssaInputs\` struct:
+### Reading and writing data
 
 \`\`\`rust
-pub struct NssaInputs {
-    pub sender: Address,
-    pub value: u64,
-    pub accounts: Vec<AccountState>,
-    pub calldata: Vec<u8>,
+// Deserialize from account data (Data implements AsRef<[u8]>)
+let lizard = Lizard::try_from_slice(pre_state.account.data.as_ref()).unwrap();
+
+// Serialize back to bytes, then convert Vec<u8> → Data
+let bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();
+post_account.data = bytes.try_into().unwrap();
+\`\`\`
+
+### Derive macros
+
+Your struct needs these so Borsh can read/write it:
+
+\`\`\`rust
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
 }
 \`\`\`
 
-- **sender** — the \`Address\` that triggered this program
-- **value** — any native tokens attached to the call
-- **accounts** — a list of accounts your program can read from
-- **calldata** — arbitrary bytes passed by the caller
+### Your mission ✏️
 
-### Looking Up an Account
+The instruction is a \`String\` — the new name for the lizard.
 
-To read an account's current balance, look it up from the \`accounts\` list:
-
-\`\`\`rust
-let account = inputs.accounts
-    .iter()
-    .find(|a| a.address == target_address)
-    .ok_or(LezError::AccountNotFound)?;
-
-println!("Balance: {}", account.balance);
-\`\`\`
-
-### Your Mission
-
-Complete the program below:
-1. Read the NSSA inputs
-2. Find the sender's account in the accounts list
-3. Emit a log message with their balance using \`lez_log!\`
+1. Add \`#[derive(BorshSerialize, BorshDeserialize)]\` to \`Lizard\`
+2. Deserialize the existing \`Lizard\` from account data
+3. Set \`lizard.name = new_name\`
+4. Serialize back, update \`post_account.data\`, build the post state
       `.trim(),
-      initialCode: `use lez_sdk::prelude::*;
 
-pub fn main() -> Result<(), LezError> {
-    let inputs = read_nssa_inputs();
-
-    // Step 1: Find the sender's account
-    // YOUR CODE HERE — search the accounts list for the sender address
-
-    // Step 2: Log the balance
-    // YOUR CODE HERE — use lez_log!("Balance: {}", account.balance)
-
-    let post_state = AccountPostState {
-        address: Address::zero(), // YOUR CODE HERE — use the sender address
-        balance: 0,
-        data: vec![],
-    };
-    write_nssa_outputs(post_state);
-    Ok(())
-}
-`,
-      solution: `use lez_sdk::prelude::*;
-
-pub fn main() -> Result<(), LezError> {
-    let inputs = read_nssa_inputs();
-
-    // Step 1: Find the sender's account
-    let account = inputs.accounts
-        .iter()
-        .find(|a| a.address == inputs.sender)
-        .ok_or(LezError::AccountNotFound)?;
-
-    // Step 2: Log the balance
-    lez_log!("Balance: {}", account.balance);
-
-    let post_state = AccountPostState {
-        address: inputs.sender,
-        balance: account.balance,
-        data: vec![],
-    };
-    write_nssa_outputs(post_state);
-    Ok(())
-}
-`,
-      validations: [
-        {
-          pattern: /inputs\.accounts/,
-          message: 'Access `inputs.accounts` to look up account data',
-          required: true,
-        },
-        {
-          pattern: /inputs\.sender/,
-          message: 'Use `inputs.sender` as the target address',
-          required: true,
-        },
-        {
-          pattern: /lez_log!/,
-          message: 'Use `lez_log!` macro to emit a log message',
-          required: true,
-        },
-      ],
-      hints: [
-        'Use `.iter().find(|a| a.address == inputs.sender)` to search through accounts.',
-        'After finding the account, call `lez_log!("Balance: {}", account.balance)` to log it.',
-        'Don\'t forget to handle the case where the account doesn\'t exist with `.ok_or(LezError::AccountNotFound)?`',
-      ],
-    },
-  ],
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
 };
 
-const CHAPTER_2: Chapter = {
-  id: 2,
-  title: 'State & Storage',
-  description: 'Persist data across LEZ program invocations',
-  lessons: [
-    {
-      id: 'ch2-l1',
-      chapter: 2,
-      step: 1,
-      title: 'Writing to Account Data',
-      content: `
-## Persistent Storage in LEZ
+// YOUR CODE HERE — add the derive macro so Lizard can be stored on-chain
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
 
-LEZ programs are stateless between invocations — but you can persist data by writing it into an account's \`data\` field.
+fn main() {
+    // The instruction is the new name for the lizard
+    let (ProgramInput { pre_states, instruction: new_name }, instruction_data) =
+        read_nssa_inputs::<String>();
 
-### Serializing State
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
 
-The recommended way is to use \`borsh\` serialization:
+    // Step 1: Deserialize the Lizard from account data
+    // YOUR CODE HERE
 
-\`\`\`rust
-use borsh::{BorshSerialize, BorshDeserialize};
+    // Step 2: Update the lizard's name
+    // YOUR CODE HERE
+
+    // Step 3: Serialize and write the updated lizard back
+    // YOUR CODE HERE
+    // let bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();
+    // let mut post_account = pre_state.account.clone();
+    // post_account.data = bytes.try_into().unwrap();
+    // let post_state = AccountPostState::new(post_account);
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
-pub struct Counter {
-    pub count: u64,
-}
-\`\`\`
-
-To write it:
-\`\`\`rust
-let state = Counter { count: 42 };
-let data = state.try_to_vec()?;
-\`\`\`
-
-To read it back next time:
-\`\`\`rust
-let state = Counter::try_from_slice(&account.data)?;
-\`\`\`
-
-### Your Mission
-
-Build a simple counter program that:
-1. Reads the current \`Counter\` state from the sender's account (default to 0 if empty)
-2. Increments the count by 1
-3. Serializes and writes the new state back
-      `.trim(),
-      initialCode: `use lez_sdk::prelude::*;
-use borsh::{BorshSerialize, BorshDeserialize};
-
-#[derive(Default)] // YOUR CODE HERE — also derive BorshSerialize and BorshDeserialize
-pub struct Counter {
-    pub count: u64,
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
 }
 
-pub fn main() -> Result<(), LezError> {
-    let inputs = read_nssa_inputs();
+fn main() {
+    let (ProgramInput { pre_states, instruction: new_name }, instruction_data) =
+        read_nssa_inputs::<String>();
 
-    let account = inputs.accounts
-        .iter()
-        .find(|a| a.address == inputs.sender)
-        .ok_or(LezError::AccountNotFound)?;
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
 
-    // Step 1: Deserialize current counter (or use default)
-    // YOUR CODE HERE
+    let mut lizard = Lizard::try_from_slice(pre_state.account.data.as_ref()).unwrap();
+    lizard.name = new_name;
 
-    // Step 2: Increment
-    // YOUR CODE HERE
+    let bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();
+    let mut post_account = pre_state.account.clone();
+    post_account.data = bytes.try_into().unwrap();
+    let post_state = AccountPostState::new(post_account);
 
-    // Step 3: Serialize and write back
-    // YOUR CODE HERE
-
-    Ok(())
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
 }
 `,
-      solution: `use lez_sdk::prelude::*;
-use borsh::{BorshSerialize, BorshDeserialize};
 
-#[derive(BorshSerialize, BorshDeserialize, Default)]
-pub struct Counter {
-    pub count: u64,
-}
-
-pub fn main() -> Result<(), LezError> {
-    let inputs = read_nssa_inputs();
-
-    let account = inputs.accounts
-        .iter()
-        .find(|a| a.address == inputs.sender)
-        .ok_or(LezError::AccountNotFound)?;
-
-    // Step 1: Deserialize current counter (or use default)
-    let mut state = if account.data.is_empty() {
-        Counter::default()
-    } else {
-        Counter::try_from_slice(&account.data)?
-    };
-
-    // Step 2: Increment
-    state.count += 1;
-
-    // Step 3: Serialize and write back
-    let data = state.try_to_vec()?;
-    write_nssa_outputs(AccountPostState {
-        address: inputs.sender,
-        balance: account.balance,
-        data,
-    });
-
-    Ok(())
-}
-`,
       validations: [
         {
-          pattern: /BorshSerialize|BorshDeserialize/,
-          message: 'Derive `BorshSerialize` and/or `BorshDeserialize` on your state struct',
+          pattern: /#\[derive\(.*Borsh/,
+          message: 'Add `#[derive(BorshSerialize, BorshDeserialize)]` to the Lizard struct',
           required: true,
         },
         {
-          pattern: /try_from_slice|Counter::default/,
-          message: 'Deserialize the existing state (or use default if empty)',
+          pattern: /try_from_slice/,
+          message: 'Deserialize with `Lizard::try_from_slice(pre_state.account.data.as_ref())`',
           required: true,
         },
         {
-          pattern: /\.count\s*\+=\s*1/,
-          message: 'Increment `state.count` by 1',
-          required: true,
-        },
-        {
-          pattern: /try_to_vec/,
-          message: 'Serialize the new state with `try_to_vec()`',
+          pattern: /borsh::to_vec/,
+          message: 'Serialize back with `borsh::to_vec(&lizard).unwrap()`',
           required: true,
         },
       ],
+
       hints: [
-        'To handle an empty account, use: `if account.data.is_empty() { Counter::default() } else { Counter::try_from_slice(&account.data)? }`',
-        'Increment with `state.count += 1;`',
-        'Serialize with `let data = state.try_to_vec()?;` and pass it into `AccountPostState { data, ... }`',
+        'Put `#[derive(BorshSerialize, BorshDeserialize)]` on the line directly above `pub struct Lizard`.',
+        'Deserialize: `let mut lizard = Lizard::try_from_slice(pre_state.account.data.as_ref()).unwrap();` then `lizard.name = new_name;`',
+        'Serialize back:\n```rust\nlet bytes: Vec<u8> = borsh::to_vec(&lizard).unwrap();\nlet mut post_account = pre_state.account.clone();\npost_account.data = bytes.try_into().unwrap();\nlet post_state = AccountPostState::new(post_account);\n```',
+      ],
+    },
+
+    // ─── Lesson 3 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch1-l3',
+      chapter: 1,
+      step: 3,
+      title: 'The Lizard Registry 📋',
+      content: `
+## Instruction Enums & Dispatching
+
+Real programs handle multiple operations. In LEZ you define an **instruction enum**
+and dispatch on it in \`main\`. The enum must derive **serde** traits so the runtime
+can deserialize it from the instruction bus:
+
+\`\`\`rust
+#[derive(serde::Serialize, serde::Deserialize)]
+enum Instruction {
+    Hatch { species: String },
+    Rename { new_name: String },
+    Feed,
+}
+\`\`\`
+
+Then read and dispatch:
+\`\`\`rust
+let (ProgramInput { pre_states, instruction }, instruction_data) =
+    read_nssa_inputs::<Instruction>();
+
+match instruction {
+    Instruction::Hatch { species } => { /* create new lizard */ }
+    Instruction::Rename { new_name } => { /* update name */ }
+    Instruction::Feed => { /* increment level */ }
+}
+\`\`\`
+
+### Why serde (not borsh) for instructions?
+
+The NSSA instruction bus uses \`risc0_zkvm::serde\` (serde-compatible) to encode
+instructions as \`Vec<u32>\`. Account *data* uses borsh because it's stored
+persistently on-chain and borsh is more compact.
+
+### Your mission 📋
+
+1. Add \`#[derive(Serialize, Deserialize)]\` to \`Instruction\`
+2. Add a \`match instruction { … }\` block handling all three variants
+3. Each branch updates \`post_account\` using borsh
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+// YOUR CODE HERE — add #[derive(Serialize, Deserialize)] here
+enum Instruction {
+    Hatch { species: String },
+    Rename { new_name: String },
+    Feed,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction }, instruction_data) =
+        read_nssa_inputs::<Instruction>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    let mut post_account = pre_state.account.clone();
+
+    // YOUR CODE HERE — match on instruction and handle each variant
+    // Hatch:  create Lizard { name: "Hatchling".into(), species, level: 1 }
+    // Rename: deserialize, update name, re-serialize
+    // Feed:   deserialize, increment level, re-serialize
+
+    let post_state = AccountPostState::new(post_account);
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+enum Instruction {
+    Hatch { species: String },
+    Rename { new_name: String },
+    Feed,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction }, instruction_data) =
+        read_nssa_inputs::<Instruction>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    let mut post_account = pre_state.account.clone();
+
+    match instruction {
+        Instruction::Hatch { species } => {
+            let lizard = Lizard { name: "Hatchling".into(), species, level: 1 };
+            post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+        }
+        Instruction::Rename { new_name } => {
+            let mut lizard = Lizard::try_from_slice(post_account.data.as_ref()).unwrap();
+            lizard.name = new_name;
+            post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+        }
+        Instruction::Feed => {
+            let mut lizard = Lizard::try_from_slice(post_account.data.as_ref()).unwrap();
+            lizard.level += 1;
+            post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+        }
+    }
+
+    let post_state = AccountPostState::new(post_account);
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      validations: [
+        {
+          pattern: /#\[derive\(.*Serialize.*Deserialize|#\[derive\(.*Deserialize.*Serialize/,
+          message: 'Add `#[derive(Serialize, Deserialize)]` to the `Instruction` enum',
+          required: true,
+        },
+        {
+          pattern: /match\s+instruction/,
+          message: 'Add a `match instruction { … }` block to dispatch variants',
+          required: true,
+        },
+        {
+          pattern: /Instruction::Hatch/,
+          message: 'Handle the `Instruction::Hatch` variant in your match',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Add `#[derive(Serialize, Deserialize)]` on the line above `enum Instruction {`.',
+        'Start your dispatch block: `match instruction { Instruction::Hatch { species } => { … }, … }`',
+        'For Hatch: `let lizard = Lizard { name: "Hatchling".into(), species, level: 1 }; post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();`',
       ],
     },
   ],
 };
 
-export const CHAPTERS: Chapter[] = [CHAPTER_1, CHAPTER_2];
+// ─────────────────────────────────────────────────────────────────────────────
+// Exports (extended in subsequent chapters)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CHAPTERS: Chapter[] = [CHAPTER_1];
 
 export const ALL_LESSONS = CHAPTERS.flatMap((c) => c.lessons);
 
