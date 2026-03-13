@@ -857,10 +857,627 @@ fn main() {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER 3 — Lizard Trading
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CHAPTER_3: Chapter = {
+  id: 3,
+  title: 'Lizard Trading',
+  description: 'Chain calls across programs, derive PDAs, and build the ultimate battle arena',
+  lessons: [
+    // ─── Lesson 7 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch3-l1',
+      chapter: 3,
+      step: 1,
+      title: 'The Lizard Marketplace 🏪',
+      content: `
+## Time to Sell Your Lizards!
+
+Your hatchery is booming — time to open a marketplace! When a buyer purchases a lizard,
+**payment flows through the Token Program**, a separate LEZ program managing fungible token
+balances. Your marketplace program must **chain a call** to the Token Program so it executes
+the transfer atomically with your trade.
+
+### ChainedCall
+
+A \`ChainedCall\` hands execution to another program at the end of your transaction:
+
+\`\`\`rust
+use nssa_core::program::{ChainedCall, write_nssa_outputs_with_chained_call};
+
+let chained_call = ChainedCall::new(
+    token_program_id,                        // program to invoke
+    vec![buyer_token_pre, seller_token_pre], // accounts it receives
+    &token_core::Instruction::Transfer { amount_to_transfer: price },
+);
+
+write_nssa_outputs_with_chained_call(
+    instruction_data,
+    vec![lizard_pre],   // this program's pre-states
+    vec![post_state],   // this program's post-states
+    vec![chained_call], // chained calls to execute after
+);
+\`\`\`
+
+### Getting the token program ID
+
+Read it from the token holding account — its owner **is** the Token Program:
+
+\`\`\`rust
+let token_program_id = buyer_token_pre.account.program_owner;
+\`\`\`
+
+The Token Program's \`Transfer\` moves tokens from account[0] to account[1].
+The buyer is signing the transaction, so their token holding is already authorized.
+
+### Your mission 🏪
+
+1. Get \`token_program_id\` from \`buyer_token_pre.account.program_owner\`
+2. Build \`ChainedCall::new(…)\` with the Transfer instruction
+3. Replace \`write_nssa_outputs\` with \`write_nssa_outputs_with_chained_call\`
+4. Add \`ChainedCall\` and \`write_nssa_outputs_with_chained_call\` to your import
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SellInstruction {
+    price: u128,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: SellInstruction { price } }, instruction_data) =
+        read_nssa_inputs::<SellInstruction>();
+
+    let [lizard_pre, buyer_token_pre, seller_token_pre] = pre_states
+        .clone()
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected lizard, buyer token, and seller token accounts"));
+
+    if !lizard_pre.is_authorized {
+        panic!("Unauthorized: only the lizard owner can sell it");
+    }
+
+    let post_state = AccountPostState::new(lizard_pre.account.clone());
+
+    // YOUR CODE HERE — read token_program_id from buyer_token_pre.account.program_owner
+    // YOUR CODE HERE — build a ChainedCall to transfer price tokens (buyer pays seller)
+    // YOUR CODE HERE — call write_nssa_outputs_with_chained_call instead of below
+    write_nssa_outputs(instruction_data, vec![lizard_pre], vec![post_state]);
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ChainedCall, ProgramInput,
+    read_nssa_inputs, write_nssa_outputs_with_chained_call,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SellInstruction {
+    price: u128,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: SellInstruction { price } }, instruction_data) =
+        read_nssa_inputs::<SellInstruction>();
+
+    let [lizard_pre, buyer_token_pre, seller_token_pre] = pre_states
+        .clone()
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected lizard, buyer token, and seller token accounts"));
+
+    if !lizard_pre.is_authorized {
+        panic!("Unauthorized: only the lizard owner can sell it");
+    }
+
+    let post_state = AccountPostState::new(lizard_pre.account.clone());
+
+    let token_program_id = buyer_token_pre.account.program_owner;
+    let chained_call = ChainedCall::new(
+        token_program_id,
+        vec![buyer_token_pre, seller_token_pre],
+        &token_core::Instruction::Transfer { amount_to_transfer: price },
+    );
+
+    write_nssa_outputs_with_chained_call(
+        instruction_data,
+        vec![lizard_pre],
+        vec![post_state],
+        vec![chained_call],
+    );
+}
+`,
+
+      validations: [
+        {
+          pattern: /ChainedCall::new\s*\(/,
+          message: 'Build a `ChainedCall::new(token_program_id, vec![…], &token_core::Instruction::Transfer { … })`',
+          required: true,
+        },
+        {
+          pattern: /token_core::Instruction::Transfer/,
+          message: 'Use `token_core::Instruction::Transfer { amount_to_transfer: price }` as the chained call instruction',
+          required: true,
+        },
+        {
+          pattern: /write_nssa_outputs_with_chained_call\s*\(/,
+          message: 'Call `write_nssa_outputs_with_chained_call(…)` instead of `write_nssa_outputs` to emit the chained call',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Get the token program ID from the buyer\'s account: `let token_program_id = buyer_token_pre.account.program_owner;`',
+        'Build the chained call:\n```rust\nlet chained_call = ChainedCall::new(\n    token_program_id,\n    vec![buyer_token_pre, seller_token_pre],\n    &token_core::Instruction::Transfer { amount_to_transfer: price },\n);\n```',
+        'Replace `write_nssa_outputs(…)` with:\n```rust\nwrite_nssa_outputs_with_chained_call(\n    instruction_data,\n    vec![lizard_pre],\n    vec![post_state],\n    vec![chained_call],\n);\n```\nAlso add `ChainedCall` and `write_nssa_outputs_with_chained_call` to your `use nssa_core::program` import.',
+      ],
+    },
+
+    // ─── Lesson 8 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch3-l2',
+      chapter: 3,
+      step: 2,
+      title: 'Breeding Pens 🏠',
+      content: `
+## Every Pair Needs Their Own Pen
+
+Two parent lizards need a **breeding pen** — a dedicated account just for them.
+But how do you guarantee a unique account per parent pair without collisions?
+**Program-Derived Accounts (PDAs)** are the answer.
+
+A PDA is an \`AccountId\` computed deterministically from your **program ID** and a **seed**:
+
+\`\`\`rust
+use nssa_core::account::AccountId;
+use nssa_core::program::{PdaSeed, ProgramId};
+use risc0_zkvm::sha::{Impl, Sha256};
+
+// Hash the two parent IDs together to form a unique 32-byte seed
+let mut seed_input = [0u8; 64];
+seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());
+seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());
+let pda_seed = PdaSeed::new(
+    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
+);
+
+// Derive the expected account ID
+let expected_pen_id = AccountId::from((&program_id, &pda_seed));
+assert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");
+\`\`\`
+
+The hashing ensures the same two parents always produce the same pen ID,
+and different pairs never collide.
+
+### Claiming the pen
+
+The pen starts as an unclaimed account (\`program_owner == DEFAULT_PROGRAM_ID\`).
+Use \`AccountPostState::new_claimed\` to take ownership:
+
+\`\`\`rust
+let pen_post_state = AccountPostState::new_claimed(pen_post);
+\`\`\`
+
+### The instruction
+
+The instruction carries your program's own ID (programs look this up at deploy time):
+
+\`\`\`rust
+#[derive(Serialize, Deserialize)]
+struct BreedInstruction { program_id: [u32; 8] }
+\`\`\`
+
+### Your mission 🏠
+
+1. Hash the two parent account IDs into a \`PdaSeed\`
+2. Derive \`AccountId::from((&program_id, &pda_seed))\`
+3. Assert the provided pen account matches the expected PDA
+4. Claim the pen with \`AccountPostState::new_claimed\`
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, DEFAULT_PROGRAM_ID, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct BreedingPen {
+    pub parent_a_id: [u8; 32],
+    pub parent_b_id: [u8; 32],
+    pub offspring_count: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BreedInstruction { program_id: [u32; 8] }
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: BreedInstruction { program_id } }, instruction_data) =
+        read_nssa_inputs::<BreedInstruction>();
+
+    let [parent_a_pre, parent_b_pre, pen_pre] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected two parent lizards and a breeding pen account"));
+
+    if !parent_a_pre.is_authorized || !parent_b_pre.is_authorized {
+        panic!("Unauthorized: both parents must authorize breeding");
+    }
+
+    let parent_a_account = parent_a_pre.account.clone();
+    let parent_b_account = parent_b_pre.account.clone();
+
+    // YOUR CODE HERE — hash the two parent account_ids into a PdaSeed
+    // YOUR CODE HERE — derive AccountId::from((&program_id, &pda_seed))
+    // YOUR CODE HERE — assert pen_pre.account_id == expected_pen_id
+
+    let pen = BreedingPen {
+        parent_a_id: parent_a_pre.account_id.to_bytes(),
+        parent_b_id: parent_b_pre.account_id.to_bytes(),
+        offspring_count: 0,
+    };
+    let mut pen_post = pen_pre.account.clone();
+    pen_post.data = borsh::to_vec(&pen).unwrap().try_into().unwrap();
+
+    // YOUR CODE HERE — use new_claimed instead of new (the pen is an unclaimed account!)
+    let pen_post_state = AccountPostState::new(pen_post);
+
+    write_nssa_outputs(
+        instruction_data,
+        vec![parent_a_pre, parent_b_pre, pen_pre],
+        vec![
+            AccountPostState::new(parent_a_account),
+            AccountPostState::new(parent_b_account),
+            pen_post_state,
+        ],
+    );
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::account::AccountId;
+use nssa_core::program::{
+    AccountPostState, PdaSeed, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+use risc0_zkvm::sha::{Impl, Sha256};
+use serde::{Deserialize, Serialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct BreedingPen {
+    pub parent_a_id: [u8; 32],
+    pub parent_b_id: [u8; 32],
+    pub offspring_count: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BreedInstruction { program_id: [u32; 8] }
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: BreedInstruction { program_id } }, instruction_data) =
+        read_nssa_inputs::<BreedInstruction>();
+
+    let [parent_a_pre, parent_b_pre, pen_pre] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected two parent lizards and a breeding pen account"));
+
+    if !parent_a_pre.is_authorized || !parent_b_pre.is_authorized {
+        panic!("Unauthorized: both parents must authorize breeding");
+    }
+
+    let parent_a_account = parent_a_pre.account.clone();
+    let parent_b_account = parent_b_pre.account.clone();
+
+    let mut seed_input = [0u8; 64];
+    seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());
+    seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());
+    let pda_seed = PdaSeed::new(
+        Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
+    );
+    let expected_pen_id = AccountId::from((&program_id, &pda_seed));
+    assert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");
+
+    let pen = BreedingPen {
+        parent_a_id: parent_a_pre.account_id.to_bytes(),
+        parent_b_id: parent_b_pre.account_id.to_bytes(),
+        offspring_count: 0,
+    };
+    let mut pen_post = pen_pre.account.clone();
+    pen_post.data = borsh::to_vec(&pen).unwrap().try_into().unwrap();
+    let pen_post_state = AccountPostState::new_claimed(pen_post);
+
+    write_nssa_outputs(
+        instruction_data,
+        vec![parent_a_pre, parent_b_pre, pen_pre],
+        vec![
+            AccountPostState::new(parent_a_account),
+            AccountPostState::new(parent_b_account),
+            pen_post_state,
+        ],
+    );
+}
+`,
+
+      validations: [
+        {
+          pattern: /PdaSeed/,
+          message: 'Create a `PdaSeed::new(…)` by hashing the two parent account IDs together',
+          required: true,
+        },
+        {
+          pattern: /AccountId::from\s*\(/,
+          message: 'Derive the expected pen ID with `AccountId::from((&program_id, &pda_seed))`',
+          required: true,
+        },
+        {
+          pattern: /AccountPostState::new_claimed\s*\(/,
+          message: 'Claim the breeding pen account with `AccountPostState::new_claimed(pen_post)`',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Hash the parent IDs:\n```rust\nlet mut seed_input = [0u8; 64];\nseed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());\nseed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());\nlet pda_seed = PdaSeed::new(\n    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()\n);\n```\nAdd `use risc0_zkvm::sha::{Impl, Sha256};` and `PdaSeed` to your imports.',
+        'Derive and verify the expected account ID:\n```rust\nlet expected_pen_id = AccountId::from((&program_id, &pda_seed));\nassert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");\n```\nAdd `use nssa_core::account::AccountId;` to your imports.',
+        'Replace `AccountPostState::new(pen_post)` with `AccountPostState::new_claimed(pen_post)` — the pen starts unclaimed.',
+      ],
+    },
+
+    // ─── Lesson 9 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch3-l3',
+      chapter: 3,
+      step: 3,
+      title: 'The Arena ⚔️',
+      content: `
+## Final Boss: The Lizard Arena
+
+Your lizards have been hatched, named, fed, claimed, and traded. Now they fight.
+The arena is the ultimate LEZ program — it combines **everything**:
+
+- **Dual authorization** — both fighters must consent to battle
+- **State comparison** — compare levels to crown a winner
+- **Record keeping** — update wins and losses on-chain
+- **Chained prize** — the loser's tokens flow to the winner via the Token Program
+
+### Two accounts, two auth checks
+
+\`\`\`rust
+if !lizard_a_pre.is_authorized {
+    panic!("Unauthorized: challenger has not signed");
+}
+if !lizard_b_pre.is_authorized {
+    panic!("Unauthorized: defender has not signed");
+}
+\`\`\`
+
+### Compare levels, update records
+
+\`\`\`rust
+let mut lizard_a = Lizard::try_from_slice(lizard_a_pre.account.data.as_ref()).unwrap();
+let mut lizard_b = Lizard::try_from_slice(lizard_b_pre.account.data.as_ref()).unwrap();
+
+let (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {
+    lizard_a.wins += 1;
+    lizard_b.losses += 1;
+    (token_a_pre, token_b_pre)
+} else {
+    lizard_b.wins += 1;
+    lizard_a.losses += 1;
+    (token_b_pre, token_a_pre)
+};
+\`\`\`
+
+### Chain the prize transfer
+
+\`\`\`rust
+loser_token.is_authorized = true; // authorize the loser's token for the transfer
+let chained_call = ChainedCall::new(
+    winner_token.account.program_owner,
+    vec![loser_token, winner_token],
+    &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },
+);
+\`\`\`
+
+### Your mission ⚔️
+
+1. Add authorization checks for **both** lizards
+2. Compare levels and update \`wins\`/\`losses\` on each \`Lizard\`
+3. Build a \`ChainedCall\` that transfers \`PRIZE_AMOUNT\` from loser to winner
+4. Use \`write_nssa_outputs_with_chained_call\`
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+    pub wins: u32,
+    pub losses: u32,
+}
+
+const PRIZE_AMOUNT: u128 = 100;
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    let [lizard_a_pre, lizard_b_pre, token_a_pre, token_b_pre] = pre_states
+        .clone()
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected two lizards and two token accounts"));
+
+    // YOUR CODE HERE — check lizard_a_pre.is_authorized (challenger must sign)
+    // YOUR CODE HERE — check lizard_b_pre.is_authorized (defender must sign)
+
+    let lizard_a = Lizard::try_from_slice(lizard_a_pre.account.data.as_ref()).unwrap();
+    let lizard_b = Lizard::try_from_slice(lizard_b_pre.account.data.as_ref()).unwrap();
+
+    // YOUR CODE HERE — compare levels, update wins/losses, pick winner/loser tokens
+
+    let lizard_a_post = lizard_a_pre.account.clone();
+    let lizard_b_post = lizard_b_pre.account.clone();
+    let token_a_account = token_a_pre.account.clone();
+    let token_b_account = token_b_pre.account.clone();
+
+    // YOUR CODE HERE — build a ChainedCall for the prize transfer
+    write_nssa_outputs(
+        instruction_data,
+        pre_states,
+        vec![
+            AccountPostState::new(lizard_a_post),
+            AccountPostState::new(lizard_b_post),
+            AccountPostState::new(token_a_account),
+            AccountPostState::new(token_b_account),
+        ],
+    );
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ChainedCall, ProgramInput,
+    read_nssa_inputs, write_nssa_outputs_with_chained_call,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+    pub wins: u32,
+    pub losses: u32,
+}
+
+const PRIZE_AMOUNT: u128 = 100;
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    let [lizard_a_pre, lizard_b_pre, token_a_pre, token_b_pre] = pre_states
+        .clone()
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected two lizards and two token accounts"));
+
+    if !lizard_a_pre.is_authorized {
+        panic!("Unauthorized: challenger has not signed");
+    }
+    if !lizard_b_pre.is_authorized {
+        panic!("Unauthorized: defender has not signed");
+    }
+
+    let mut lizard_a = Lizard::try_from_slice(lizard_a_pre.account.data.as_ref()).unwrap();
+    let mut lizard_b = Lizard::try_from_slice(lizard_b_pre.account.data.as_ref()).unwrap();
+    let token_a_account = token_a_pre.account.clone();
+    let token_b_account = token_b_pre.account.clone();
+
+    let (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {
+        lizard_a.wins += 1; lizard_b.losses += 1;
+        (token_a_pre, token_b_pre)
+    } else {
+        lizard_b.wins += 1; lizard_a.losses += 1;
+        (token_b_pre, token_a_pre)
+    };
+
+    let mut lizard_a_post = lizard_a_pre.account.clone();
+    lizard_a_post.data = borsh::to_vec(&lizard_a).unwrap().try_into().unwrap();
+    let mut lizard_b_post = lizard_b_pre.account.clone();
+    lizard_b_post.data = borsh::to_vec(&lizard_b).unwrap().try_into().unwrap();
+
+    loser_token.is_authorized = true;
+    let chained_call = ChainedCall::new(
+        winner_token.account.program_owner,
+        vec![loser_token, winner_token],
+        &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },
+    );
+
+    write_nssa_outputs_with_chained_call(
+        instruction_data, pre_states,
+        vec![
+            AccountPostState::new(lizard_a_post), AccountPostState::new(lizard_b_post),
+            AccountPostState::new(token_a_account), AccountPostState::new(token_b_account),
+        ],
+        vec![chained_call],
+    );
+}
+`,
+
+      validations: [
+        {
+          pattern: /!\s*lizard_a_pre\.is_authorized/,
+          message: 'Check `!lizard_a_pre.is_authorized` — the challenger must sign the battle',
+          required: true,
+        },
+        {
+          pattern: /!\s*lizard_b_pre\.is_authorized/,
+          message: 'Check `!lizard_b_pre.is_authorized` — the defender must sign the battle',
+          required: true,
+        },
+        {
+          pattern: /ChainedCall::new\s*\(/,
+          message: 'Build a `ChainedCall::new(…)` to transfer the prize tokens from loser to winner',
+          required: true,
+        },
+        {
+          pattern: /write_nssa_outputs_with_chained_call\s*\(/,
+          message: 'Use `write_nssa_outputs_with_chained_call(…)` to emit the prize transfer alongside your outputs',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Add two authorization guards right after unpacking the accounts:\n```rust\nif !lizard_a_pre.is_authorized { panic!("Unauthorized: challenger has not signed"); }\nif !lizard_b_pre.is_authorized { panic!("Unauthorized: defender has not signed"); }\n```',
+        'Compare levels and track the result:\n```rust\nlet (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {\n    lizard_a.wins += 1; lizard_b.losses += 1;\n    (token_a_pre, token_b_pre)\n} else {\n    lizard_b.wins += 1; lizard_a.losses += 1;\n    (token_b_pre, token_a_pre)\n};\n```',
+        'Build the prize chained call and use the right output function:\n```rust\nloser_token.is_authorized = true;\nlet chained_call = ChainedCall::new(\n    winner_token.account.program_owner,\n    vec![loser_token, winner_token],\n    &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },\n);\n// then call write_nssa_outputs_with_chained_call(…, vec![chained_call])\n```',
+      ],
+    },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Exports (extended in subsequent chapters)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const CHAPTERS: Chapter[] = [CHAPTER_1, CHAPTER_2];
+export const CHAPTERS: Chapter[] = [CHAPTER_1, CHAPTER_2, CHAPTER_3];
 
 export const ALL_LESSONS = CHAPTERS.flatMap((c) => c.lessons);
 
