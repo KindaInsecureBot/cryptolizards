@@ -63,11 +63,7 @@ pub fn main() -> Result<(), LezError> {
     // YOUR CODE HERE — call read_nssa_inputs()
 
     // Step 2: Build the output account state
-    let post_state = AccountPostState {
-        address: Address::zero(),
-        balance: 0,
-        data: vec![],
-    };
+    // YOUR CODE HERE — create an AccountPostState { address: ..., balance: ..., data: ... }
 
     // Step 3: Write outputs back to the NSSA
     // YOUR CODE HERE — call write_nssa_outputs(post_state)
@@ -114,7 +110,7 @@ pub fn main() -> Result<(), LezError> {
       ],
       hints: [
         'The function `read_nssa_inputs()` returns the inputs passed to your program. Try: `let inputs = read_nssa_inputs();`',
-        '`AccountPostState` is already partially filled in — you just need to call `write_nssa_outputs(post_state)` to submit it.',
+        'Build the output: `let post_state = AccountPostState { address: inputs.sender, balance: inputs.value, data: vec![] };`',
         'Put it all together:\n```rust\nlet inputs = read_nssa_inputs();\n// ... build post_state ...\nwrite_nssa_outputs(post_state);\n```',
       ],
     },
@@ -172,13 +168,13 @@ pub fn main() -> Result<(), LezError> {
     let inputs = read_nssa_inputs();
 
     // Step 1: Find the sender's account
-    // YOUR CODE HERE — search inputs.accounts for inputs.sender
+    // YOUR CODE HERE — search the accounts list for the sender address
 
     // Step 2: Log the balance
     // YOUR CODE HERE — use lez_log!("Balance: {}", account.balance)
 
     let post_state = AccountPostState {
-        address: inputs.sender,
+        address: Address::zero(), // YOUR CODE HERE — use the sender address
         balance: 0,
         data: vec![],
     };
@@ -284,7 +280,7 @@ Build a simple counter program that:
       initialCode: `use lez_sdk::prelude::*;
 use borsh::{BorshSerialize, BorshDeserialize};
 
-#[derive(BorshSerialize, BorshDeserialize, Default)]
+#[derive(Default)] // YOUR CODE HERE — also derive BorshSerialize and BorshDeserialize
 pub struct Counter {
     pub count: u64,
 }
