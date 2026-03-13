@@ -33,7 +33,7 @@ export default function CodeEditor({ code, onChange, onMount }: Props) {
       <Editor
         language="rust"
         value={code}
-        theme="vs-dark"
+        theme="vs"
         options={EDITOR_OPTIONS}
         onChange={(val) => onChange(val ?? '')}
         onMount={onMount}
@@ -43,6 +43,7 @@ export default function CodeEditor({ code, onChange, onMount }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
             height: '100%',
+            background: 'var(--white)',
             color: 'var(--text-muted)',
             fontSize: '13px',
           }}>
