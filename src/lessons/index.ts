@@ -437,10 +437,430 @@ fn main() {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER 2 — Lizard Care
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CHAPTER_2: Chapter = {
+  id: 2,
+  title: 'Lizard Care',
+  description: 'Secure your hatchery: authorization, account claiming, and balance conservation',
+  lessons: [
+    // ─── Lesson 4 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch2-l1',
+      chapter: 2,
+      step: 1,
+      title: 'Only the Owner Can Feed 🔐',
+      content: `
+## Someone Tried to Feed Your Lizard!
+
+You got an alert: an unknown address just called **Feed** on your lizard account.
+In LEZ, every account passed to your program arrives wrapped in \`AccountWithMetadata\`,
+which carries an authorization flag:
+
+\`\`\`rust
+pub struct AccountWithMetadata {
+    pub account: Account,
+    pub is_authorized: bool,   // ← set by the LEZ runtime
+    pub account_id: AccountId,
+}
+\`\`\`
+
+The runtime sets \`is_authorized = true\` only when the **account's owner signed**
+the transaction. If it's \`false\`, reject the call immediately — someone is trying
+to modify an account they don't control!
+
+### Pattern
+
+\`\`\`rust
+if !pre_state.is_authorized {
+    panic!("Unauthorized: only the lizard owner can feed it");
+}
+\`\`\`
+
+### Your mission 🔐
+
+1. After unpacking \`pre_state\`, check \`pre_state.is_authorized\`
+2. \`panic!\` with a clear message if it is \`false\`
+3. Let the existing feed logic run only for authorized callers
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    // YOUR CODE HERE — reject unauthorized callers before doing anything else!
+    // Hint: check pre_state.is_authorized and panic! if false
+
+    let mut post_account = pre_state.account.clone();
+    let mut lizard = Lizard::try_from_slice(post_account.data.as_ref()).unwrap();
+    lizard.level += 1;
+    post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+    let post_state = AccountPostState::new(post_account);
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    if !pre_state.is_authorized {
+        panic!("Unauthorized: only the lizard owner can feed it");
+    }
+
+    let mut post_account = pre_state.account.clone();
+    let mut lizard = Lizard::try_from_slice(post_account.data.as_ref()).unwrap();
+    lizard.level += 1;
+    post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+    let post_state = AccountPostState::new(post_account);
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      validations: [
+        {
+          pattern: /is_authorized/,
+          message: 'Check `pre_state.is_authorized` to verify the caller has permission',
+          required: true,
+        },
+        {
+          pattern: /!\s*pre_state\.is_authorized/,
+          message: 'Guard against unauthorized access: `if !pre_state.is_authorized { panic!(…) }`',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Add this block right after unpacking `pre_state`:\n```rust\nif !pre_state.is_authorized {\n    panic!("Unauthorized: only the lizard owner can feed it");\n}\n```',
+        '`is_authorized` is a field on `AccountWithMetadata` — the type of `pre_state`. Access it with `pre_state.is_authorized`.',
+      ],
+    },
+
+    // ─── Lesson 5 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch2-l2',
+      chapter: 2,
+      step: 2,
+      title: 'Claiming Your Egg 🏷️',
+      content: `
+## Wild Lizard Eggs Are Unclaimed
+
+Out in the wild, lizard eggs exist as accounts with no program owner — their
+\`program_owner\` is set to the **default program ID** (all zeros):
+
+\`\`\`rust
+pub const DEFAULT_PROGRAM_ID: ProgramId = [0; 8];
+\`\`\`
+
+When your hatchery program hatches one of these eggs, it must **claim** ownership
+so it can manage the account going forward. Use \`AccountPostState::new_claimed\`
+instead of \`AccountPostState::new\` to signal this:
+
+| Constructor | When to use |
+|---|---|
+| \`AccountPostState::new(account)\` | Account already owned by your program |
+| \`AccountPostState::new_claimed(account)\` | Claiming an unowned (default) account |
+
+### Pattern
+
+\`\`\`rust
+use nssa_core::program::DEFAULT_PROGRAM_ID;
+
+let post_state = if post_account.program_owner == DEFAULT_PROGRAM_ID {
+    AccountPostState::new_claimed(post_account)  // wild egg — claim it!
+} else {
+    AccountPostState::new(post_account)           // already yours
+};
+\`\`\`
+
+### Your mission 🏷️
+
+1. Import \`DEFAULT_PROGRAM_ID\` from \`nssa_core::program\`
+2. After building \`post_account\`, check whether it's unclaimed
+3. Use \`new_claimed\` for unclaimed eggs, \`new\` for already-owned accounts
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+fn main() {
+    // The instruction is the species of the newly hatched lizard
+    let (ProgramInput { pre_states, instruction: species }, instruction_data) =
+        read_nssa_inputs::<String>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    if !pre_state.is_authorized {
+        panic!("Unauthorized: cannot hatch into this account");
+    }
+
+    let lizard = Lizard { name: "Hatchling".into(), species, level: 1 };
+    let mut post_account = pre_state.account.clone();
+    post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+    // YOUR CODE HERE — should you use new() or new_claimed()?
+    // Wild eggs have program_owner == DEFAULT_PROGRAM_ID — claim them!
+    let post_state = AccountPostState::new(post_account);
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, DEFAULT_PROGRAM_ID, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: species }, instruction_data) =
+        read_nssa_inputs::<String>();
+
+    let [pre_state] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected exactly one account"));
+
+    if !pre_state.is_authorized {
+        panic!("Unauthorized: cannot hatch into this account");
+    }
+
+    let lizard = Lizard { name: "Hatchling".into(), species, level: 1 };
+    let mut post_account = pre_state.account.clone();
+    post_account.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+    let post_state = if post_account.program_owner == DEFAULT_PROGRAM_ID {
+        AccountPostState::new_claimed(post_account)
+    } else {
+        AccountPostState::new(post_account)
+    };
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+`,
+
+      validations: [
+        {
+          pattern: /DEFAULT_PROGRAM_ID/,
+          message: 'Import and use `DEFAULT_PROGRAM_ID` to detect unclaimed accounts',
+          required: true,
+        },
+        {
+          pattern: /AccountPostState::new_claimed\s*\(/,
+          message: 'Call `AccountPostState::new_claimed(…)` to claim the wild egg',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Add `DEFAULT_PROGRAM_ID` to your import: `use nssa_core::program::{ AccountPostState, DEFAULT_PROGRAM_ID, … };`',
+        'Replace the final `AccountPostState::new(post_account)` with:\n```rust\nlet post_state = if post_account.program_owner == DEFAULT_PROGRAM_ID {\n    AccountPostState::new_claimed(post_account)\n} else {\n    AccountPostState::new(post_account)\n};\n```',
+      ],
+    },
+
+    // ─── Lesson 6 ────────────────────────────────────────────────────────────
+    {
+      id: 'ch2-l3',
+      chapter: 2,
+      step: 3,
+      title: 'Lizard Growth 📈',
+      content: `
+## Your Lizard Needs to Eat
+
+It's feeding time! Your lizard eats **food tokens** to level up. Food tokens live
+in a separate **food account** as native LEZ balance (\`account.balance\`).
+
+But LEZ is strict: **total balance across all accounts must be preserved**. You
+cannot create or destroy tokens — you can only move them. The runtime enforces this
+via \`validate_execution\`:
+
+> *"Total balance of all pre-state accounts must equal total balance of all
+> post-state accounts."*
+
+So to feed your lizard you must:
+1. **Deduct** \`FEED_COST\` from the food account's balance
+2. **Add** \`FEED_COST\` to the lizard account's balance
+3. **Level up** the lizard in its borsh data
+
+### Two-account pattern
+
+\`\`\`rust
+// Unpack two accounts in order
+let [lizard_pre, food_pre] = pre_states
+    .try_into()
+    .unwrap_or_else(|_| panic!("Expected lizard and food accounts"));
+
+// Pass both into write_nssa_outputs
+write_nssa_outputs(
+    instruction_data,
+    vec![lizard_pre, food_pre],
+    vec![lizard_post_state, food_post_state],
+);
+\`\`\`
+
+### Your mission 📈
+
+1. Destructure **two** accounts from \`pre_states\`: lizard and food
+2. Level up the lizard in its borsh data
+3. Transfer \`FEED_COST = 10\` from food balance to lizard balance
+4. Commit **both** post states to \`write_nssa_outputs\`
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+const FEED_COST: u128 = 10;
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    // YOUR CODE HERE — unpack TWO accounts: lizard and food
+    // let [lizard_pre, food_pre] = pre_states.try_into()...
+
+    // YOUR CODE HERE — check authorization, then level up the lizard
+    // Remember: update borsh data AND transfer FEED_COST between balances
+
+    // YOUR CODE HERE — build post states for BOTH accounts and write outputs
+    // LEZ will reject the transaction if total balance changes!
+}
+`,
+
+      solution: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::program::{
+    AccountPostState, ProgramInput, read_nssa_inputs, write_nssa_outputs,
+};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+const FEED_COST: u128 = 10;
+
+fn main() {
+    let (ProgramInput { pre_states, instruction: _ }, instruction_data) =
+        read_nssa_inputs::<()>();
+
+    let [lizard_pre, food_pre] = pre_states
+        .try_into()
+        .unwrap_or_else(|_| panic!("Expected lizard and food accounts"));
+
+    if !lizard_pre.is_authorized {
+        panic!("Unauthorized: only the lizard owner can feed it");
+    }
+
+    let mut lizard_post = lizard_pre.account.clone();
+    let mut lizard = Lizard::try_from_slice(lizard_post.data.as_ref()).unwrap();
+    lizard.level += 1;
+    lizard_post.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+    lizard_post.balance += FEED_COST;
+
+    let mut food_post = food_pre.account.clone();
+    food_post.balance -= FEED_COST;
+
+    write_nssa_outputs(
+        instruction_data,
+        vec![lizard_pre, food_pre],
+        vec![AccountPostState::new(lizard_post), AccountPostState::new(food_post)],
+    );
+}
+`,
+
+      validations: [
+        {
+          pattern: /\[\s*lizard_pre\s*,\s*food_pre\s*\]|\[\s*\w+\s*,\s*\w+\s*\]\s*=\s*pre_states/,
+          message: 'Destructure two accounts from `pre_states`: `let [lizard_pre, food_pre] = pre_states.try_into()…`',
+          required: true,
+        },
+        {
+          pattern: /FEED_COST/,
+          message: 'Use the `FEED_COST` constant when transferring balance between accounts',
+          required: true,
+        },
+        {
+          pattern: /vec!\s*\[\s*\w+\s*,\s*\w+\s*\]/,
+          message: 'Pass both accounts to `write_nssa_outputs` — LEZ checks that all accounts are accounted for',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Unpack two accounts: `let [lizard_pre, food_pre] = pre_states.try_into().unwrap_or_else(|_| panic!("Expected lizard and food accounts"));`',
+        'Level up and transfer energy:\n```rust\nlizard_post.balance += FEED_COST; // lizard gains tokens\nfood_post.balance -= FEED_COST;   // food account loses tokens\n```\nTotal balance stays the same — LEZ is satisfied.',
+        'Commit both accounts:\n```rust\nwrite_nssa_outputs(\n    instruction_data,\n    vec![lizard_pre, food_pre],\n    vec![AccountPostState::new(lizard_post), AccountPostState::new(food_post)],\n);\n```',
+      ],
+    },
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Exports (extended in subsequent chapters)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const CHAPTERS: Chapter[] = [CHAPTER_1];
+export const CHAPTERS: Chapter[] = [CHAPTER_1, CHAPTER_2];
 
 export const ALL_LESSONS = CHAPTERS.flatMap((c) => c.lessons);
 
