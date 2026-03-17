@@ -1676,8 +1676,8 @@ use risc0_zkvm::sha::{Impl, Sha256};
 
 // Hash the two parent IDs together to form a unique 32-byte seed
 let mut seed_input = [0u8; 64];
-seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());
-seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());
+seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());
+seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());
 let pda_seed = PdaSeed::new(
     Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
 );
@@ -1759,8 +1759,8 @@ fn main() {
     // YOUR CODE HERE — assert pen_pre.account_id == expected_pen_id
 
     let pen = BreedingPen {
-        parent_a_id: parent_a_pre.account_id.to_bytes(),
-        parent_b_id: parent_b_pre.account_id.to_bytes(),
+        parent_a_id: parent_a_pre.account_id.as_ref(),
+        parent_b_id: parent_b_pre.account_id.as_ref(),
         offspring_count: 0,
     };
     let mut pen_post = pen_pre.account.clone();
@@ -1822,8 +1822,8 @@ fn main() {
     let parent_b_account = parent_b_pre.account.clone();
 
     let mut seed_input = [0u8; 64];
-    seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());
-    seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());
+    seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());
+    seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());
     let pda_seed = PdaSeed::new(
         Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
     );
@@ -1831,8 +1831,8 @@ fn main() {
     assert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");
 
     let pen = BreedingPen {
-        parent_a_id: parent_a_pre.account_id.to_bytes(),
-        parent_b_id: parent_b_pre.account_id.to_bytes(),
+        parent_a_id: parent_a_pre.account_id.as_ref(),
+        parent_b_id: parent_b_pre.account_id.as_ref(),
         offspring_count: 0,
     };
     let mut pen_post = pen_pre.account.clone();
@@ -1870,7 +1870,7 @@ fn main() {
       ],
 
       hints: [
-        'Hash the parent IDs:\n```rust\nlet mut seed_input = [0u8; 64];\nseed_input[0..32].copy_from_slice(&parent_a_pre.account_id.to_bytes());\nseed_input[32..64].copy_from_slice(&parent_b_pre.account_id.to_bytes());\nlet pda_seed = PdaSeed::new(\n    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()\n);\n```\nAdd `use risc0_zkvm::sha::{Impl, Sha256};` and `PdaSeed` to your imports.',
+        'Hash the parent IDs:\n```rust\nlet mut seed_input = [0u8; 64];\nseed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());\nseed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());\nlet pda_seed = PdaSeed::new(\n    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()\n);\n```\nAdd `use risc0_zkvm::sha::{Impl, Sha256};` and `PdaSeed` to your imports.',
         'Derive and verify the expected account ID:\n```rust\nlet expected_pen_id = AccountId::from((&program_id, &pda_seed));\nassert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");\n```\nAdd `use nssa_core::account::AccountId;` to your imports.',
         'Replace `AccountPostState::new(pen_post)` with `AccountPostState::new_claimed(pen_post)` — the pen starts unclaimed.',
       ],
@@ -1924,7 +1924,8 @@ let (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {
 ### Chain the prize transfer
 
 \`\`\`rust
-loser_token.is_authorized = true; // authorize the loser's token for the transfer
+// The Token Program receives these accounts with is_authorized set by the
+// runtime based on transaction signatures — both fighters already signed.
 let chained_call = ChainedCall::new(
     winner_token.account.program_owner,
     vec![loser_token, winner_token],
@@ -2043,7 +2044,8 @@ fn main() {
     let mut lizard_b_post = lizard_b_pre.account.clone();
     lizard_b_post.data = borsh::to_vec(&lizard_b).unwrap().try_into().unwrap();
 
-    loser_token.is_authorized = true;
+    // The Token Program receives accounts with is_authorized set by the runtime
+    // based on transaction signatures — both fighters already signed.
     let chained_call = ChainedCall::new(
         winner_token.account.program_owner,
         vec![loser_token, winner_token],
@@ -2087,7 +2089,7 @@ fn main() {
       hints: [
         'Add two authorization guards right after unpacking the accounts:\n```rust\nif !lizard_a_pre.is_authorized { panic!("Unauthorized: challenger has not signed"); }\nif !lizard_b_pre.is_authorized { panic!("Unauthorized: defender has not signed"); }\n```',
         'Compare levels and track the result:\n```rust\nlet (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {\n    lizard_a.wins += 1; lizard_b.losses += 1;\n    (token_a_pre, token_b_pre)\n} else {\n    lizard_b.wins += 1; lizard_a.losses += 1;\n    (token_b_pre, token_a_pre)\n};\n```',
-        'Build the prize chained call and use the right output function:\n```rust\nloser_token.is_authorized = true;\nlet chained_call = ChainedCall::new(\n    winner_token.account.program_owner,\n    vec![loser_token, winner_token],\n    &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },\n);\n// then call write_nssa_outputs_with_chained_call(…, vec![chained_call])\n```',
+        'Build the prize chained call and use the right output function:\n```rust\n// is_authorized is set by the runtime from transaction signatures\nlet chained_call = ChainedCall::new(\n    winner_token.account.program_owner,\n    vec![loser_token, winner_token],\n    &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },\n);\n// then call write_nssa_outputs_with_chained_call(…, vec![chained_call])\n```',
       ],
     },
   ],
