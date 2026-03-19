@@ -641,6 +641,11 @@ const CHAPTER_1: Chapter = {
 The **Logos Execution Zone (LEZ)** is a ZK-proven smart-contract runtime. Every LEZ program
 follows one strict pattern:
 
+> **Note:** Real LEZ programs are compiled as RISC Zero zkVM guests and need
+> \`#![no_main]\` and \`risc0_zkvm::guest::entry!(main);\` at the top. We omit
+> these in the tutorial to keep things clean — the SPEL framework generates
+> them automatically.
+
 > **Read → Process → Write**
 
 1. **Read** — call \`read_nssa_inputs\` to get accounts and an instruction
@@ -665,6 +670,15 @@ fn main() {
     write_nssa_outputs(instruction_data, pre_states, post_states);
 }
 \`\`\`
+
+### ProgramInput<T>
+
+\`ProgramInput<T>\` has two fields:
+- \`pre_states: Vec<AccountWithMetadata>\` — the accounts passed to your program
+- \`instruction: T\` — your deserialized instruction data (the type parameter)
+
+The type parameter \`T\` is \`()\` when there's no instruction data, or your custom
+instruction enum/struct for more complex programs.
 
 ### AccountPostState
 
@@ -760,6 +774,10 @@ fn main() {
 
 Your lizard lives in an account's \`data\` field — a raw byte blob wrapped in the
 \`Data\` type. To store structured state you **Borsh-serialize** your Rust structs.
+
+> **Data type:** Account data is stored as \`Data\`, a wrapper around \`Vec<u8>\`.
+> Convert with \`bytes.try_into().unwrap()\` (Vec<u8> → Data) and read with
+> \`.as_ref()\` (Data → &[u8]).
 
 ### Reading and writing data
 
@@ -1499,6 +1517,11 @@ Your hatchery is booming — time to open a marketplace! When a buyer purchases 
 balances. Your marketplace program must **chain a call** to the Token Program so it executes
 the transfer atomically with your trade.
 
+> **\`token_core\` crate:** The Token Program publishes a shared crate called \`token_core\`
+> that contains its instruction types (like \`Transfer\`). In a real project you'd add
+> \`token_core\` as a dependency in \`Cargo.toml\`. We use it here as
+> \`token_core::Instruction::Transfer { amount_to_transfer: price }\`.
+
 ### ChainedCall
 
 A \`ChainedCall\` hands execution to another program at the end of your transaction:
@@ -1676,8 +1699,8 @@ use risc0_zkvm::sha::{Impl, Sha256};
 
 // Hash the two parent IDs together to form a unique 32-byte seed
 let mut seed_input = [0u8; 64];
-seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());
-seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());
+seed_input[0..32].copy_from_slice(parent_a_pre.account_id.as_ref());
+seed_input[32..64].copy_from_slice(parent_b_pre.account_id.as_ref());
 let pda_seed = PdaSeed::new(
     Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
 );
@@ -1689,6 +1712,23 @@ assert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");
 
 The hashing ensures the same two parents always produce the same pen ID,
 and different pairs never collide.
+
+### Assigning account IDs to struct fields
+
+When you need to store an \`AccountId\` as a \`[u8; 32]\` field, use
+\`*account_id.value()\` to dereference it:
+
+\`\`\`rust
+let pen = BreedingPen {
+    parent_a_id: *parent_a_pre.account_id.value(), // [u8; 32] — dereferenced copy
+    parent_b_id: *parent_b_pre.account_id.value(),
+    offspring_count: 0,
+};
+\`\`\`
+
+> **Why not \`.as_ref()\`?** \`.as_ref()\` returns \`&[u8; 32]\` (a reference), but struct
+> fields need an owned \`[u8; 32]\`. \`.value()\` returns \`&[u8; 32]\` too, and \`*\`
+> dereferences it into the owned value.
 
 ### Claiming the pen
 
@@ -1759,8 +1799,8 @@ fn main() {
     // YOUR CODE HERE — assert pen_pre.account_id == expected_pen_id
 
     let pen = BreedingPen {
-        parent_a_id: parent_a_pre.account_id.as_ref(),
-        parent_b_id: parent_b_pre.account_id.as_ref(),
+        parent_a_id: *parent_a_pre.account_id.value(),
+        parent_b_id: *parent_b_pre.account_id.value(),
         offspring_count: 0,
     };
     let mut pen_post = pen_pre.account.clone();
@@ -1822,8 +1862,8 @@ fn main() {
     let parent_b_account = parent_b_pre.account.clone();
 
     let mut seed_input = [0u8; 64];
-    seed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());
-    seed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());
+    seed_input[0..32].copy_from_slice(parent_a_pre.account_id.as_ref());
+    seed_input[32..64].copy_from_slice(parent_b_pre.account_id.as_ref());
     let pda_seed = PdaSeed::new(
         Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()
     );
@@ -1831,8 +1871,8 @@ fn main() {
     assert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");
 
     let pen = BreedingPen {
-        parent_a_id: parent_a_pre.account_id.as_ref(),
-        parent_b_id: parent_b_pre.account_id.as_ref(),
+        parent_a_id: *parent_a_pre.account_id.value(),
+        parent_b_id: *parent_b_pre.account_id.value(),
         offspring_count: 0,
     };
     let mut pen_post = pen_pre.account.clone();
@@ -1870,7 +1910,7 @@ fn main() {
       ],
 
       hints: [
-        'Hash the parent IDs:\n```rust\nlet mut seed_input = [0u8; 64];\nseed_input[0..32].copy_from_slice(&parent_a_pre.account_id.as_ref());\nseed_input[32..64].copy_from_slice(&parent_b_pre.account_id.as_ref());\nlet pda_seed = PdaSeed::new(\n    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()\n);\n```\nAdd `use risc0_zkvm::sha::{Impl, Sha256};` and `PdaSeed` to your imports.',
+        'Hash the parent IDs:\n```rust\nlet mut seed_input = [0u8; 64];\nseed_input[0..32].copy_from_slice(parent_a_pre.account_id.as_ref());\nseed_input[32..64].copy_from_slice(parent_b_pre.account_id.as_ref());\nlet pda_seed = PdaSeed::new(\n    Impl::hash_bytes(&seed_input).as_bytes().try_into().unwrap()\n);\n```\nAdd `use risc0_zkvm::sha::{Impl, Sha256};` and `PdaSeed` to your imports.',
         'Derive and verify the expected account ID:\n```rust\nlet expected_pen_id = AccountId::from((&program_id, &pda_seed));\nassert_eq!(pen_pre.account_id, expected_pen_id, "Wrong breeding pen account!");\n```\nAdd `use nssa_core::account::AccountId;` to your imports.',
         'Replace `AccountPostState::new(pen_post)` with `AccountPostState::new_claimed(pen_post)` — the pen starts unclaimed.',
       ],
@@ -1887,6 +1927,9 @@ fn main() {
 
 Your lizards have been hatched, named, fed, claimed, and traded. Now they fight.
 The arena is the ultimate LEZ program — it combines **everything**:
+
+> **Reminder:** \`token_core::Instruction::Transfer\` comes from the Token Program's
+> shared crate (\`token_core\`). Add it as a dependency in \`Cargo.toml\` for real projects.
 
 - **Dual authorization** — both fighters must consent to battle
 - **State comparison** — compare levels to crown a winner
@@ -2090,6 +2133,251 @@ fn main() {
         'Add two authorization guards right after unpacking the accounts:\n```rust\nif !lizard_a_pre.is_authorized { panic!("Unauthorized: challenger has not signed"); }\nif !lizard_b_pre.is_authorized { panic!("Unauthorized: defender has not signed"); }\n```',
         'Compare levels and track the result:\n```rust\nlet (winner_token, mut loser_token) = if lizard_a.level >= lizard_b.level {\n    lizard_a.wins += 1; lizard_b.losses += 1;\n    (token_a_pre, token_b_pre)\n} else {\n    lizard_b.wins += 1; lizard_a.losses += 1;\n    (token_b_pre, token_a_pre)\n};\n```',
         'Build the prize chained call and use the right output function:\n```rust\n// is_authorized is set by the runtime from transaction signatures\nlet chained_call = ChainedCall::new(\n    winner_token.account.program_owner,\n    vec![loser_token, winner_token],\n    &token_core::Instruction::Transfer { amount_to_transfer: PRIZE_AMOUNT },\n);\n// then call write_nssa_outputs_with_chained_call(…, vec![chained_call])\n```',
+      ],
+    },
+
+    // ─── Lesson 10 ───────────────────────────────────────────────────────────
+    {
+      id: 'ch3-l4',
+      chapter: 3,
+      step: 4,
+      title: 'Level Up: The SPEL Framework 🚀',
+      content: `
+## Everything You Wrote… SPEL Writes for You
+
+Congratulations — you've built a full LEZ ecosystem by hand! You wrote:
+
+- **Instruction enums** with serde derives
+- **\`main()\` dispatch** with \`match instruction { … }\`
+- **Authorization checks** with \`is_authorized\`
+- **Account claiming** with \`DEFAULT_PROGRAM_ID\` checks
+- **PDA derivation** with manual hashing and \`AccountId::from\`
+- **Chained calls** to other programs
+
+That's a lot of boilerplate. What if a macro could generate all of it?
+
+### Enter SPEL 🧙‍♂️
+
+The **SPEL framework** ([github.com/logos-co/spel](https://github.com/logos-co/spel))
+provides the \`#[lez_program]\` macro that auto-generates:
+
+| What you wrote by hand | SPEL equivalent |
+|---|---|
+| \`enum Instruction { … }\` + serde derives | Auto-generated from \`#[instruction]\` functions |
+| \`match instruction { … }\` in \`main()\` | Auto-generated dispatch |
+| \`if !pre_state.is_authorized { panic!(...) }\` | \`#[account(signer)]\` |
+| \`if account.program_owner == DEFAULT_PROGRAM_ID\` | \`#[account(init)]\` |
+| \`#[account(mut)]\` | Marks writable accounts |
+| Manual PDA derivation | \`#[account(pda = literal("..."))]\` |
+| \`panic!("error")\` | \`LezError\` variants with proper error handling |
+| \`write_nssa_outputs(…)\` | Return \`LezResult\` (\`Result<LezOutput, LezError>\`) |
+
+Plus: **IDL auto-generation** gives you a full CLI for free — no separate tooling needed!
+
+### Before vs After: Your Lizard Registry
+
+**Before (Chapter 1 — raw LEZ):**
+
+\`\`\`rust
+#[derive(Serialize, Deserialize)]
+enum Instruction {
+    Hatch { species: String },
+    Rename { new_name: String },
+    Feed,
+}
+
+fn main() {
+    let (ProgramInput { pre_states, instruction }, instruction_data) =
+        read_nssa_inputs::<Instruction>();
+    let [pre_state] = pre_states.try_into().unwrap_or_else(|_| panic!("..."));
+    let mut post_account = pre_state.account.clone();
+
+    match instruction {
+        Instruction::Hatch { species } => { /* ... */ }
+        Instruction::Rename { new_name } => { /* ... */ }
+        Instruction::Feed => { /* ... */ }
+    }
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+\`\`\`
+
+**After (SPEL):**
+
+\`\`\`rust
+use lez_framework::prelude::*;
+
+#[lez_program]
+mod lizard_registry {
+    use super::*;
+
+    #[instruction]
+    pub fn hatch(
+        #[account(init)] lizard_account: AccountWithMetadata,
+        #[account(signer)] owner: AccountWithMetadata,
+        species: String,
+    ) -> LezResult {
+        // Just the business logic — no boilerplate!
+    }
+}
+\`\`\`
+
+### Your mission 🚀
+
+Convert the Chapter 1 Lizard Registry to use SPEL macros!
+
+1. Add \`use lez_framework::prelude::*;\`
+2. Wrap your module in \`#[lez_program]\`
+3. Convert each instruction variant to an \`#[instruction]\` function
+4. Use \`#[account(init)]\` for Hatch, \`#[account(mut)]\` for Rename/Feed
+5. Use \`#[account(signer)]\` for owner accounts
+6. Return \`LezResult\` with \`Ok(LezOutput::states_only(vec![…]))\`
+
+> **Learn more:** [github.com/logos-co/spel](https://github.com/logos-co/spel) — the full SPEL
+> framework with docs, examples, and the \`lez-cli\` tool for deploying and interacting with
+> your programs.
+      `.trim(),
+
+      initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::account::AccountWithMetadata;
+use nssa_core::program::AccountPostState;
+// YOUR CODE HERE — add: use lez_framework::prelude::*;
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+// YOUR CODE HERE — add #[lez_program] and convert to SPEL style
+// Instead of an Instruction enum + match dispatch, define a module with
+// #[instruction] functions for hatch, rename, and feed.
+//
+// Each function:
+//   - Takes account parameters with #[account(...)] attributes
+//   - Takes instruction data as regular parameters
+//   - Returns LezResult
+//   - Uses Ok(LezOutput::states_only(vec![...])) instead of write_nssa_outputs
+//
+// Account attributes:
+//   #[account(init)]   — for new accounts (replaces DEFAULT_PROGRAM_ID check)
+//   #[account(mut)]    — for existing writable accounts
+//   #[account(signer)] — for authorization (replaces is_authorized check)
+`,
+
+      solution: `#![no_main]
+
+use borsh::{BorshDeserialize, BorshSerialize};
+use nssa_core::account::AccountWithMetadata;
+use nssa_core::program::AccountPostState;
+use lez_framework::prelude::*;
+
+risc0_zkvm::guest::entry!(main);
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Lizard {
+    pub name: String,
+    pub species: String,
+    pub level: u32,
+}
+
+#[lez_program]
+mod lizard_registry {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[instruction]
+    pub fn hatch(
+        #[account(init)]
+        lizard_account: AccountWithMetadata,
+        #[account(signer)]
+        owner: AccountWithMetadata,
+        species: String,
+    ) -> LezResult {
+        let lizard = Lizard { name: "Hatchling".into(), species, level: 1 };
+        let mut post = lizard_account.account.clone();
+        post.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+        Ok(LezOutput::states_only(vec![
+            AccountPostState::new_claimed(post),
+            AccountPostState::new(owner.account.clone()),
+        ]))
+    }
+
+    #[instruction]
+    pub fn rename(
+        #[account(mut)]
+        lizard_account: AccountWithMetadata,
+        #[account(signer)]
+        owner: AccountWithMetadata,
+        new_name: String,
+    ) -> LezResult {
+        let mut lizard = Lizard::try_from_slice(lizard_account.account.data.as_ref())
+            .map_err(|e| LezError::DeserializationError { account_index: 0, message: e.to_string() })?;
+        lizard.name = new_name;
+        let mut post = lizard_account.account.clone();
+        post.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+        Ok(LezOutput::states_only(vec![
+            AccountPostState::new(post),
+            AccountPostState::new(owner.account.clone()),
+        ]))
+    }
+
+    #[instruction]
+    pub fn feed(
+        #[account(mut)]
+        lizard_account: AccountWithMetadata,
+        #[account(signer)]
+        owner: AccountWithMetadata,
+    ) -> LezResult {
+        let mut lizard = Lizard::try_from_slice(lizard_account.account.data.as_ref())
+            .map_err(|e| LezError::DeserializationError { account_index: 0, message: e.to_string() })?;
+        lizard.level += 1;
+        let mut post = lizard_account.account.clone();
+        post.data = borsh::to_vec(&lizard).unwrap().try_into().unwrap();
+
+        Ok(LezOutput::states_only(vec![
+            AccountPostState::new(post),
+            AccountPostState::new(owner.account.clone()),
+        ]))
+    }
+}
+`,
+
+      validations: [
+        {
+          pattern: /#\[lez_program\]/,
+          message: 'Add `#[lez_program]` above your module to enable SPEL code generation',
+          required: true,
+        },
+        {
+          pattern: /#\[instruction\]/,
+          message: 'Mark each instruction handler with `#[instruction]`',
+          required: true,
+        },
+        {
+          pattern: /#\[account\(signer\)\]/,
+          message: 'Use `#[account(signer)]` on owner accounts to replace manual `is_authorized` checks',
+          required: true,
+        },
+        {
+          pattern: /LezResult/,
+          message: 'Return `LezResult` from each instruction function',
+          required: true,
+        },
+        {
+          pattern: /LezOutput::states_only/,
+          message: 'Use `Ok(LezOutput::states_only(vec![…]))` to return your post states',
+          required: true,
+        },
+      ],
+
+      hints: [
+        'Start with the module structure:\n```rust\n#[lez_program]\nmod lizard_registry {\n    use super::*;\n\n    #[instruction]\n    pub fn hatch(…) -> LezResult { … }\n}\n```',
+        'For the hatch function, use `#[account(init)]` for the new lizard and `#[account(signer)]` for the owner:\n```rust\n#[instruction]\npub fn hatch(\n    #[account(init)] lizard_account: AccountWithMetadata,\n    #[account(signer)] owner: AccountWithMetadata,\n    species: String,\n) -> LezResult {\n```',
+        'Return post states with `Ok(LezOutput::states_only(…))` instead of calling `write_nssa_outputs`:\n```rust\nOk(LezOutput::states_only(vec![\n    AccountPostState::new_claimed(post),\n    AccountPostState::new(owner.account.clone()),\n]))\n```',
       ],
     },
   ],
