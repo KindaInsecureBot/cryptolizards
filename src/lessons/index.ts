@@ -2205,7 +2205,7 @@ fn main() {
 **After (SPEL):**
 
 \`\`\`rust
-use lez_framework::prelude::*;
+use spel_framework::prelude::*;
 
 #[lez_program]
 mod lizard_registry {
@@ -2226,7 +2226,7 @@ mod lizard_registry {
 
 Convert the Chapter 1 Lizard Registry to use SPEL macros!
 
-1. Add \`use lez_framework::prelude::*;\`
+1. Add \`use spel_framework::prelude::*;\`
 2. Wrap your module in \`#[lez_program]\`
 3. Convert each instruction variant to an \`#[instruction]\` function
 4. Use \`#[account(init)]\` for Hatch, \`#[account(mut)]\` for Rename/Feed
@@ -2234,14 +2234,14 @@ Convert the Chapter 1 Lizard Registry to use SPEL macros!
 6. Return \`LezResult\` with \`Ok(LezOutput::states_only(vec![…]))\`
 
 > **Learn more:** [github.com/logos-co/spel](https://github.com/logos-co/spel) — the full SPEL
-> framework with docs, examples, and the \`lez-cli\` tool for deploying and interacting with
+> framework with docs, examples, and the \`spel\` tool for deploying and interacting with
 > your programs.
       `.trim(),
 
       initialCode: `use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::account::AccountWithMetadata;
 use nssa_core::program::AccountPostState;
-// YOUR CODE HERE — add: use lez_framework::prelude::*;
+// YOUR CODE HERE — add: use spel_framework::prelude::*;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Lizard {
@@ -2271,7 +2271,7 @@ pub struct Lizard {
 use borsh::{BorshDeserialize, BorshSerialize};
 use nssa_core::account::AccountWithMetadata;
 use nssa_core::program::AccountPostState;
-use lez_framework::prelude::*;
+use spel_framework::prelude::*;
 
 risc0_zkvm::guest::entry!(main);
 
