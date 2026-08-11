@@ -1,5 +1,7 @@
 # 🦎 CryptoLizards
 
+> **Disclaimer:** This is a personal, experimental hobby project. It is not an official Logos product. Not audited.
+
 **CryptoLizards** is a CryptoZombies-style interactive tutorial web app for learning [LEZ (Logos Execution Zone)](https://logos.co) blockchain development in Rust.
 
 ## Live App
